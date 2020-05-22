@@ -36,7 +36,7 @@ using SharpDX.Mathematics.Interop;
 
 namespace SharpDraw.DrawBoards
 {
-    public class DirectDrawBoard : IDrawBoard
+    public class DirectDrawBoard : IDrawBoard, IPaintTool
     {
         private enum ContextState
         {
@@ -110,13 +110,42 @@ namespace SharpDraw.DrawBoards
             }
         }
 
-        public void DrawText(string text, float size, string family, float x = 0, float y = 0, RawColor4? color = null)
+        public IPaintTool GetPaintTool()
+        {
+            return this as IPaintTool;
+        }
+
+        public void DrawText(string text, TextFormat fmt, float x = 0, float y = 0, RGBAColor? color = null)
         {
             BeginDraw();
-            var textFmt = new TextFormat(dwFac, family, size);
+            var textFmt = new TextFormat(dwFac, fmt.FontFamilyName, fmt.FontCollection, fmt.FontWeight, fmt.FontStyle, fmt.FontStretch, fmt.FontSize, fmt.LocaleName);
+            textFmt.FlowDirection = fmt.FlowDirection;
+            textFmt.IncrementalTabStop = fmt.IncrementalTabStop;
+            textFmt.ParagraphAlignment = fmt.ParagraphAlignment;
+            textFmt.ReadingDirection = fmt.ReadingDirection;
+            textFmt.TextAlignment = fmt.TextAlignment;
+            textFmt.WordWrapping = fmt.WordWrapping;
+
             var textLayout = new TextLayout(dwFac, text, textFmt, 400f, 200f);
             var textBrush = new SolidColorBrush(d2dCtx, color ?? new RawColor4(0, 0, 0, 255));
             d2dCtx.DrawTextLayout(new RawVector2(x, y), textLayout, textBrush);
+        }
+
+        public void DrawText(string text, FontSetting fmt, float x = 0, float y = 0, RGBAColor? color = null)
+        {
+            var textFmt = new TextFormat(dwFac, fmt.Family, (SharpDX.DirectWrite.FontWeight)fmt.Weight, (SharpDX.DirectWrite.FontStyle)fmt.Style, fmt.Size);
+            textFmt.ParagraphAlignment = (SharpDX.DirectWrite.ParagraphAlignment)fmt.ParagraphAlign;
+            textFmt.TextAlignment = (SharpDX.DirectWrite.TextAlignment)fmt.Align;
+            textFmt.WordWrapping = (SharpDX.DirectWrite.WordWrapping)fmt.WordWrapping;
+
+            this.DrawText(text, textFmt, x, y, color);
+        }
+
+        public void DrawText(string text, string family, float size, float x = 0, float y = 0, RGBAColor? color = null)
+        {
+            var textFmt = new TextFormat(dwFac, family, size);
+
+            this.DrawText(text, textFmt, x, y, color);
         }
 
         public void Dump(string path)
@@ -124,9 +153,9 @@ namespace SharpDraw.DrawBoards
             EndDraw();
             ctxState = ContextState.Init;
 
-            using(var file = new WICStream(wicFac, path, SharpDX.IO.NativeFileAccess.Write))
+            using (var file = new WICStream(wicFac, path, SharpDX.IO.NativeFileAccess.Write))
             {
-                using(var enc = new PngBitmapEncoder(wicFac))
+                using (var enc = new PngBitmapEncoder(wicFac))
                 {
                     enc.Initialize(file);
 
@@ -136,7 +165,7 @@ namespace SharpDraw.DrawBoards
                         frameEnc.SetSize(Width, Height);
                         frameEnc.SetPixelFormat(ref wicpxFmt);
 
-                        using(var imgEnc = new ImageEncoder(wicFac, d2dDev))
+                        using (var imgEnc = new ImageEncoder(wicFac, d2dDev))
                         {
                             imgEnc.WriteFrame(d2dbmpTarget, frameEnc, new ImageParameters(d2dpxFmt, DPI, DPI, 0, 0, Width, Height));
                             frameEnc.Commit();
